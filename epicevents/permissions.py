@@ -14,7 +14,7 @@ Différence Authentification vs Autorisation :
 from functools import wraps
 from typing import Callable, List
 
-from epicevents.models import User, RoleEnum
+from epicevents.models import User, RoleEnum, Client, Contract, Event
 
 
 # ============================================================
@@ -148,7 +148,7 @@ def require_role(*roles: RoleEnum):
 # VÉRIFICATIONS SPÉCIFIQUES (Ownership)
 # ============================================================
 
-def is_client_owner(user: User, client) -> bool:
+def is_client_owner(user: User, client: Client) -> bool:
     """
     Vérifie si l'utilisateur est le commercial du client.
     
@@ -162,7 +162,7 @@ def is_client_owner(user: User, client) -> bool:
     return client.sales_contact_id == user.id
 
 
-def is_event_support(user: User, event) -> bool:
+def is_event_support(user: User, event: Event) -> bool:
     """
     Vérifie si l'utilisateur est le support assigné à l'événement.
     
@@ -176,7 +176,7 @@ def is_event_support(user: User, event) -> bool:
     return event.support_contact_id == user.id
 
 
-def can_modify_client(user: User, client) -> bool:
+def can_modify_client(user: User, client: Client) -> bool:
     """
     Vérifie si l'utilisateur peut modifier un client.
     
@@ -196,7 +196,7 @@ def can_modify_client(user: User, client) -> bool:
     return False
 
 
-def can_modify_contract(user: User, contract) -> bool:
+def can_modify_contract(user: User, contract: Contract) -> bool:
     """
     Vérifie si l'utilisateur peut modifier un contrat.
     
@@ -218,7 +218,7 @@ def can_modify_contract(user: User, contract) -> bool:
     return False
 
 
-def can_modify_event(user: User, event) -> bool:
+def can_modify_event(user: User, event: Event) -> bool:
     """
     Vérifie si l'utilisateur peut modifier un événement.
     

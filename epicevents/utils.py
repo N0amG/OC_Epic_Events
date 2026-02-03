@@ -4,11 +4,13 @@ Utilitaires de sécurité pour Epic Events CRM
 Ce module fournit les fonctions pour :
 - Hachage et vérification des mots de passe (bcrypt)
 - Génération et validation des tokens JWT
+- Stockage persistant du token (fichier local)
 """
 
 import os
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Optional, Tuple
 
 import bcrypt
 import jwt
@@ -19,7 +21,10 @@ load_dotenv()
 # Clé secrète pour signer les tokens JWT (à définir dans .env)
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-me-in-production")
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_HOURS = 24  # Durée de validité du token
+JWT_EXPIRATION_HOURS = 24  # Durée de validité du token (1 jour)
+
+# Chemin du fichier de stockage du token
+TOKEN_FILE = Path(__file__).parent.parent / ".epic_token"
 
 
 # ============================================================
@@ -87,9 +92,9 @@ def create_access_token(user_id: int, employee_number: str, role: str) -> str:
     Returns:
         Le token JWT encodé (str)
     """
-    now = datetime.now()
+    now = datetime.now(timezone.utc)  # Timezone-aware UTC
     payload = {
-        "sub": user_id,
+        "sub": str(user_id),  # JWT requiert une string pour "sub"
         "employee_number": employee_number,
         "role": role,
         "iat": now,
@@ -130,8 +135,8 @@ def get_token_user_id(token: str) -> Optional[int]:
         L'ID de l'utilisateur ou None si token invalide
     """
     payload = decode_access_token(token)
-    if payload:
-        return payload.get("sub")
+    if payload and payload.get("sub"):
+        return int(payload.get("sub"))
     return None
 
 
@@ -149,3 +154,86 @@ def get_token_role(token: str) -> Optional[str]:
     if payload:
         return payload.get("role")
     return None
+
+
+# ============================================================
+# STOCKAGE PERSISTANT DU TOKEN
+# ============================================================
+
+def save_token(token: str) -> None:
+    """
+    Sauvegarde le token JWT dans un fichier local.
+    
+    Args:
+        token: Le token JWT à sauvegarder
+    """
+    TOKEN_FILE.write_text(token, encoding="utf-8")
+
+
+def load_token() -> Optional[str]:
+    """
+    Charge le token JWT depuis le fichier local.
+    
+    Returns:
+        Le token JWT ou None si non trouvé
+    """
+    if TOKEN_FILE.exists():
+        token = TOKEN_FILE.read_text(encoding="utf-8").strip()
+        return token if token else None
+    return None
+
+
+def clear_token() -> None:
+    """
+    Vide le token JWT (déconnexion).
+    Le fichier est conservé mais vidé.
+    """
+    TOKEN_FILE.write_text("", encoding="utf-8")
+
+
+def is_token_expired(token: str) -> bool:
+    """
+    Vérifie si un token est expiré.
+    
+    Args:
+        token: Le token JWT
+        
+    Returns:
+        True si le token est expiré, False sinon
+    """
+    try:
+        jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        return False
+    except jwt.ExpiredSignatureError:
+        return True
+    except jwt.InvalidTokenError:
+        return True
+
+
+def get_valid_token() -> Tuple[Optional[str], Optional[str]]:
+    """
+    Récupère le token stocké et vérifie sa validité.
+    
+    Returns:
+        Tuple (token, erreur):
+        - (token, None) si le token est valide
+        - (None, "expired") si le token est expiré
+        - (None, "not_found") si aucun token n'existe
+        - (None, "invalid") si le token est invalide
+    """
+    token = load_token()
+    
+    if not token:
+        return None, "not_found"
+    
+    try:
+        jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        return token, None
+    except jwt.ExpiredSignatureError:
+        # Token expiré → on le supprime et on informe
+        clear_token()
+        return None, "expired"
+    except jwt.InvalidTokenError:
+        # Token invalide → on le supprime
+        clear_token()
+        return None, "invalid"

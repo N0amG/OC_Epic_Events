@@ -11,7 +11,15 @@ from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 
 from epicevents.models import User, RoleEnum
-from epicevents.utils import hash_password, verify_password, create_access_token, decode_access_token
+from epicevents.utils import (
+    hash_password, 
+    verify_password, 
+    create_access_token, 
+    decode_access_token,
+    save_token,
+    clear_token,
+    get_valid_token
+)
 
 
 class AuthenticationError(Exception):
@@ -111,6 +119,9 @@ def authenticate_user(db: Session, email: str, password: str) -> Tuple[User, str
         role=user.role.value
     )
     
+    # Sauvegarder le token localement pour persistance
+    save_token(token)
+    
     return user, token
 
 
@@ -181,3 +192,39 @@ def deactivate_user(db: Session, user: User) -> bool:
     user.is_active = False
     db.commit()
     return True
+
+
+def get_authenticated_user(db: Session) -> User:
+    """
+    Récupère l'utilisateur authentifié à partir du token stocké.
+    
+    Cette fonction vérifie automatiquement :
+    - Si un token existe
+    - Si le token est valide et non expiré
+    - Si l'utilisateur existe et est actif
+    
+    Args:
+        db: Session de base de données
+        
+    Returns:
+        L'utilisateur authentifié
+        
+    Raises:
+        AuthenticationError: Si l'utilisateur n'est pas authentifié
+    """
+    token, error = get_valid_token()
+    
+    if error == "not_found":
+        raise AuthenticationError("Veuillez vous connecter")
+    elif error == "expired":
+        raise AuthenticationError("Session expirée, veuillez vous reconnecter")
+    elif error == "invalid":
+        raise AuthenticationError("Session invalide, veuillez vous reconnecter")
+    
+    user = get_current_user(db, token)
+    
+    if not user:
+        clear_token()
+        raise AuthenticationError("Utilisateur introuvable, veuillez vous reconnecter")
+    
+    return user
