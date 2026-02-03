@@ -27,17 +27,21 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, nullable=False)
-    email = Column(String, unique=True, nullable=False)
-    password = Column(String, nullable=False)
+    employee_number = Column(String(50), unique=True, nullable=False, index=True)
+    full_name = Column(String(100), nullable=False)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    # Le mot de passe est haché avec bcrypt (salé automatiquement)
+    password_hash = Column(String(255), nullable=False)
     role = Column(Enum(RoleEnum), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
 
     # Relations (Pour naviguer facilement depuis le User)
     clients = relationship("Client", back_populates="sales_contact")
     events = relationship("Event", back_populates="support_contact")
 
     def __repr__(self):
-        return f"<User(id={self.id}, username='{self.username}', role='{self.role}')>"
+        return f"<User(id={self.id}, employee_number='{self.employee_number}', role='{self.role.value}')>"
 
 
 class Client(Base):
