@@ -228,3 +228,140 @@ def get_authenticated_user(db: Session) -> User:
         raise AuthenticationError("Utilisateur introuvable, veuillez vous reconnecter")
     
     return user
+
+
+def create_user(
+    db: Session,
+    current_user: User,
+    employee_number: str,
+    full_name: str,
+    email: str,
+    password: str,
+    role: RoleEnum
+) -> User:
+    """
+    Crée un nouveau collaborateur (management uniquement).
+    
+    Args:
+        db: Session de base de données
+        current_user: Utilisateur effectuant la création
+        employee_number: Numéro d'employé
+        full_name: Nom complet
+        email: Email
+        password: Mot de passe
+        role: Rôle du collaborateur
+        
+    Returns:
+        Le collaborateur créé
+        
+    Raises:
+        ValueError: Si permission refusée ou données invalides
+    """
+    # Vérifier les permissions
+    if current_user.role != RoleEnum.MANAGEMENT:
+        raise ValueError("Seul le management peut créer des collaborateurs")
+    
+    # Validation des données
+    if not employee_number or not employee_number.strip():
+        raise ValueError("Le numéro d'employé est obligatoire")
+    
+    if not full_name or not full_name.strip():
+        raise ValueError("Le nom complet est obligatoire")
+    
+    if not email or not email.strip() or "@" not in email:
+        raise ValueError("L'email est invalide")
+    
+    if not password or len(password) < 8:
+        raise ValueError("Le mot de passe doit contenir au moins 8 caractères")
+    
+    # Vérifier unicité
+    if db.query(User).filter(User.employee_number == employee_number).first():
+        raise ValueError("Ce numéro d'employé existe déjà")
+    
+    if db.query(User).filter(User.email == email).first():
+        raise ValueError("Cet email est déjà utilisé")
+    
+    # Créer le collaborateur
+    return register_user(db, employee_number, full_name, email, password, role)
+
+
+def update_user(
+    db: Session,
+    current_user: User,
+    user_id: int,
+    employee_number: str = None,
+    full_name: str = None,
+    email: str = None,
+    role: RoleEnum = None,
+    is_active: bool = None
+) -> User:
+    """
+    Modifie un collaborateur (management uniquement).
+    
+    Args:
+        db: Session de base de données
+        current_user: Utilisateur effectuant la modification
+        user_id: ID du collaborateur à modifier
+        employee_number: Nouveau numéro d'employé
+        full_name: Nouveau nom
+        email: Nouvel email
+        role: Nouveau rôle (département)
+        is_active: Nouveau statut actif
+        
+    Returns:
+        Le collaborateur modifié
+        
+    Raises:
+        ValueError: Si permission refusée ou données invalides
+    """
+    # Vérifier les permissions
+    if current_user.role != RoleEnum.MANAGEMENT:
+        raise ValueError("Seul le management peut modifier des collaborateurs")
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ValueError("Collaborateur non trouvé")
+    
+    # Validation et application des modifications
+    if employee_number is not None:
+        if not employee_number.strip():
+            raise ValueError("Le numéro d'employé ne peut pas être vide")
+        
+        existing = db.query(User).filter(
+            User.employee_number == employee_number,
+            User.id != user_id
+        ).first()
+        if existing:
+            raise ValueError("Ce numéro d'employé est déjà utilisé")
+        
+        user.employee_number = employee_number
+    
+    if full_name is not None:
+        if not full_name.strip():
+            raise ValueError("Le nom complet ne peut pas être vide")
+        user.full_name = full_name
+    
+    if email is not None:
+        if not email.strip() or "@" not in email:
+            raise ValueError("L'email est invalide")
+        
+        existing = db.query(User).filter(
+            User.email == email,
+            User.id != user_id
+        ).first()
+        if existing:
+            raise ValueError("Cet email est déjà utilisé")
+        
+        user.email = email
+    
+    if role is not None:
+        user.role = role
+    
+    if is_active is not None:
+        user.is_active = is_active
+    
+    db.commit()
+    db.refresh(user)
+    
+    return user
+
