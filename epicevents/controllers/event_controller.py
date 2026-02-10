@@ -238,10 +238,16 @@ def delete_event(db: Session, user: User, event_id: int) -> bool:
     # Vérifier les permissions
     can_delete = False
     if has_permission(user, "event.delete"):
+        # Management peut supprimer tous les événements
         can_delete = True
     elif has_permission(user, "event.delete_own"):
-        if event.support_contact_id == user.id:
+        # Support peut supprimer ses événements assignés
+        if user.role == RoleEnum.SUPPORT and event.support_contact_id == user.id:
             can_delete = True
+        # Commercial peut supprimer les événements de ses contrats
+        elif user.role == RoleEnum.SALES:
+            if event.contract and event.contract.client and event.contract.client.sales_contact_id == user.id:
+                can_delete = True
     
     if not can_delete:
         raise EventError("Vous n'avez pas la permission de supprimer cet événement")

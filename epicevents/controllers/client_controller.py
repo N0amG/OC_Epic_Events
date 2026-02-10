@@ -108,17 +108,22 @@ def delete_client(db: Session, user: User, client_id: int) -> bool:
     Raises:
         ClientError: Si permission refusée ou client non trouvé
     """
-    # Vérifier les permissions
-    if not has_permission(user, "client.delete"):
-        raise ClientError("Vous n'avez pas la permission de supprimer des clients")
-    
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise ClientError(f"Client #{client_id} non trouvé")
     
-    # Un commercial ne peut supprimer que ses propres clients
-    if user.role == RoleEnum.SALES and client.sales_contact_id != user.id:
-        raise ClientError("Vous ne pouvez supprimer que vos propres clients")
+    # Vérifier les permissions
+    can_delete = False
+    if has_permission(user, "client.delete"):
+        # Management peut supprimer tous les clients
+        can_delete = True
+    elif has_permission(user, "client.delete_own"):
+        # Commercial peut supprimer uniquement ses propres clients
+        if client.sales_contact_id == user.id:
+            can_delete = True
+    
+    if not can_delete:
+        raise ClientError("Vous n'avez pas la permission de supprimer ce client")
     
     db.delete(client)
     db.commit()
