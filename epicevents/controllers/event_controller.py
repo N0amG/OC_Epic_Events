@@ -214,3 +214,39 @@ def update_event(
     db.refresh(event)
     
     return event
+
+
+def delete_event(db: Session, user: User, event_id: int) -> bool:
+    """
+    Supprime un événement.
+    
+    Args:
+        db: Session de base de données
+        user: Utilisateur effectuant la suppression
+        event_id: ID de l'événement à supprimer
+        
+    Returns:
+        True si la suppression a réussi
+        
+    Raises:
+        EventError: Si permission refusée ou événement non trouvé
+    """
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise EventError(f"Événement #{event_id} non trouvé")
+    
+    # Vérifier les permissions
+    can_delete = False
+    if has_permission(user, "event.delete"):
+        can_delete = True
+    elif has_permission(user, "event.delete_own"):
+        if event.support_contact_id == user.id:
+            can_delete = True
+    
+    if not can_delete:
+        raise EventError("Vous n'avez pas la permission de supprimer cet événement")
+    
+    db.delete(event)
+    db.commit()
+    
+    return True
