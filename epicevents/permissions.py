@@ -28,25 +28,33 @@ PERMISSIONS = {
         "user.read",
         "user.update",
         "user.delete",
-        # Lecture globale
+        # Gestion complète des clients
         "client.read",
+        "client.delete",
+        # Gestion complète des contrats
         "contract.read",
         "contract.update",  # Peut modifier tous les contrats
+        "contract.delete",  # Peut supprimer tous les contrats
+        # Gestion complète des événements
         "event.read",
         "event.update",     # Peut assigner le support aux événements
+        "event.delete",     # Peut supprimer tous les événements
     ],
     RoleEnum.SALES: [
         # Gestion des clients
         "client.create",
         "client.read",
         "client.update_own",  # Uniquement ses propres clients
+        "client.delete_own",  # Peut supprimer ses propres clients
         # Gestion des contrats
         "contract.create",    # Pour ses propres clients
         "contract.read",
         "contract.update_own",  # Uniquement les contrats de ses clients
-        # Lecture des événements
+        "contract.delete_own",  # Peut supprimer les contrats de ses clients
+        # Gestion des événements
         "event.create",       # Pour les contrats signés de ses clients
         "event.read",
+        "event.delete_own",   # Peut supprimer les événements de ses clients
     ],
     RoleEnum.SUPPORT: [
         # Lecture seule clients/contrats
@@ -55,6 +63,7 @@ PERMISSIONS = {
         # Gestion des événements assignés
         "event.read",
         "event.update_own",   # Uniquement ses événements assignés
+        "event.delete_own",   # Peut supprimer ses événements assignés
     ],
 }
 
