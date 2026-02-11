@@ -5,6 +5,7 @@ from typing import Optional
 from datetime import datetime, timezone
 from decimal import Decimal
 
+from epicevents.sentry_config import init_sentry
 from epicevents.database import get_db
 from epicevents.controllers.auth_controller import (
     authenticate_user,
@@ -34,6 +35,9 @@ from epicevents.controllers.event_controller import (
 )
 from epicevents.models import RoleEnum, User
 from epicevents.utils import clear_token
+
+# Initialiser Sentry au démarrage de l'application
+init_sentry()
 
 app = typer.Typer()
 user_app = typer.Typer()
@@ -87,6 +91,15 @@ def register(
             raise typer.Exit(1)
 
 
+@app.command()
+def test_sentry():
+    """Commande de test pour vérifier que Sentry capture bien les erreurs."""
+    typer.echo("Test de Sentry - Génération d'une erreur volontaire...")
+    
+    # Erreur non gérée - Sentry la capturera automatiquement
+    raise ValueError("Test Sentry : Cette erreur doit apparaître dans Sentry")
+
+
 # USERS
 @user_app.command("list")
 def list_users():
@@ -100,13 +113,14 @@ def list_users():
 
         users = db.query(User).all()
 
-        typer.echo(f"\n{'ID':<5} {'N. Employe':<15} {'Nom':<20} {'Email':<30} {'Role':<15}")
+        typer.echo(
+            f"\n{'ID':<5} {'N. Employe':<15} {'Nom':<20} {'Email':<30} {'Role':<15}"
+        )
         typer.echo("-" * 90)
         for u in users:
             typer.echo(
                 f"{u.id:<5} {u.employee_number:<15} {u.full_name:<20} {u.email:<30} {u.role.value:<15}"
             )
-
 
 @user_app.command("create")
 def create_user_cmd(
@@ -211,7 +225,6 @@ def list_clients():
         except (AuthenticationError, Exception) as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
-
 
 @client_app.command("create")
 def create_client_cmd(full_name: str, email: str, phone: str, company_name: str):

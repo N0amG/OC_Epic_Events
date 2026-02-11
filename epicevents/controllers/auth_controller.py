@@ -11,6 +11,7 @@ from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 
 from epicevents.models import User, RoleEnum
+from epicevents.sentry_config import log_user_creation, log_user_update
 from epicevents.utils import (
     hash_password,
     verify_password,
@@ -182,22 +183,6 @@ def change_password(
     return True
 
 
-def deactivate_user(db: Session, user: User) -> bool:
-    """
-    Désactive un compte utilisateur.
-
-    Args:
-        db: Session de base de données
-        user: L'utilisateur à désactiver
-
-    Returns:
-        True si la désactivation a réussi
-    """
-    user.is_active = False
-    db.commit()
-    return True
-
-
 def get_authenticated_user(db: Session) -> User:
     """
     Récupère l'utilisateur authentifié à partir du token stocké.
@@ -286,7 +271,16 @@ def create_user(
         raise ValueError("Cet email est déjà utilisé")
 
     # Créer le collaborateur
-    return register_user(db, employee_number, full_name, email, password, role)
+    new_user = register_user(db, employee_number, full_name, email, password, role)
+    
+    # Journaliser la création
+    log_user_creation(
+        user_email=new_user.email,
+        created_by=current_user.email,
+        role=role.value
+    )
+    
+    return new_user
 
 
 def update_user(
@@ -326,6 +320,9 @@ def update_user(
     if not user:
         raise ValueError("Collaborateur non trouvé")
 
+    # Tracer les changements pour la journalisation
+    changes = {}
+
     # Validation et application des modifications
     if employee_number is not None:
         if not employee_number.strip():
@@ -339,11 +336,13 @@ def update_user(
         if existing:
             raise ValueError("Ce numéro d'employé est déjà utilisé")
 
+        changes["employee_number"] = {"old": user.employee_number, "new": employee_number}
         user.employee_number = employee_number
 
     if full_name is not None:
         if not full_name.strip():
             raise ValueError("Le nom complet ne peut pas être vide")
+        changes["full_name"] = {"old": user.full_name, "new": full_name}
         user.full_name = full_name
 
     if email is not None:
@@ -356,16 +355,27 @@ def update_user(
         if existing:
             raise ValueError("Cet email est déjà utilisé")
 
+        changes["email"] = {"old": user.email, "new": email}
         user.email = email
 
     if role is not None:
+        changes["role"] = {"old": user.role.value, "new": role.value}
         user.role = role
 
     if is_active is not None:
+        changes["is_active"] = {"old": user.is_active, "new": is_active}
         user.is_active = is_active
 
     db.commit()
     db.refresh(user)
+
+    # Journaliser la modification
+    if changes:
+        log_user_update(
+            user_email=user.email,
+            updated_by=current_user.email,
+            changes=changes
+        )
 
     return user
 

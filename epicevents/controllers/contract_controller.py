@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from epicevents.models import Contract, Client, User, RoleEnum
 from epicevents.permissions import has_permission
+from epicevents.sentry_config import log_contract_signature
 
 
 class ContractError(Exception):
@@ -95,7 +96,6 @@ def create_contract(
     db.add(contract)
     db.commit()
     db.refresh(contract)
-
     return contract
 
 
@@ -167,7 +167,21 @@ def update_contract(
         contract.amount_due = amount_due
 
     if is_signed is not None:
+        # Vérifier si le contrat passe de non signé à signé
+        was_unsigned = not contract.is_signed
         contract.is_signed = is_signed
+
+        # Journaliser la signature du contrat
+        if was_unsigned and is_signed:
+            client_name = (
+                contract.client.company_name if contract.client else "Client inconnu"
+            )
+            log_contract_signature(
+                contract_id=contract.id,
+                client_name=client_name,
+                signed_by=user.email,
+                total_amount=float(contract.total_amount),
+            )
 
     db.commit()
     db.refresh(contract)
@@ -178,22 +192,22 @@ def update_contract(
 def delete_contract(db: Session, user: User, contract_id: int) -> bool:
     """
     Supprime un contrat.
-    
+
     Args:
         db: Session de base de données
         user: Utilisateur effectuant la suppression
         contract_id: ID du contrat à supprimer
-        
+
     Returns:
         True si la suppression a réussi
-        
+
     Raises:
         ContractError: Si permission refusée ou contrat non trouvé
     """
     contract = db.query(Contract).filter(Contract.id == contract_id).first()
     if not contract:
         raise ContractError(f"Contrat #{contract_id} non trouvé")
-    
+
     # Vérifier les permissions
     can_delete = False
     if has_permission(user, "contract.delete"):
@@ -201,11 +215,11 @@ def delete_contract(db: Session, user: User, contract_id: int) -> bool:
     elif has_permission(user, "contract.delete_own"):
         if contract.client and contract.client.sales_contact_id == user.id:
             can_delete = True
-    
+
     if not can_delete:
         raise ContractError("Vous n'avez pas la permission de supprimer ce contrat")
-    
+
     db.delete(contract)
     db.commit()
-    
+
     return True
