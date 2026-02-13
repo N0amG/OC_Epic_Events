@@ -1,0 +1,9 @@
+# Dépendances principales
+bcrypt==5.0.0
+dotenv==0.9.9
+psycopg2-binary==2.9.11
+PyJWT==2.10.1
+python-dotenv==1.2.1
+sentry-sdk==2.52.0
+SQLAlchemy==2.0.46
+typing_extensions==4.15.0

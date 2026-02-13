@@ -5,7 +5,7 @@ from typing import Optional
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from epicevents.sentry_config import init_sentry
+from epicevents.sentry_config import init_sentry, SentryTyper
 from epicevents.database import get_db
 from epicevents.controllers.auth_controller import (
     authenticate_user,
@@ -20,18 +20,21 @@ from epicevents.controllers.client_controller import (
     get_all_clients,
     create_client,
     delete_client,
+    ClientError,
 )
 from epicevents.controllers.contract_controller import (
     get_all_contracts,
     create_contract,
     update_contract,
     delete_contract,
+    ContractError,
 )
 from epicevents.controllers.event_controller import (
     get_all_events,
     create_event,
     update_event,
     delete_event,
+    EventError,
 )
 from epicevents.models import RoleEnum, User
 from epicevents.utils import clear_token
@@ -39,11 +42,11 @@ from epicevents.utils import clear_token
 # Initialiser Sentry au démarrage de l'application
 init_sentry()
 
-app = typer.Typer()
-user_app = typer.Typer()
-client_app = typer.Typer()
-contract_app = typer.Typer()
-event_app = typer.Typer()
+app = SentryTyper()
+user_app = SentryTyper()
+client_app = SentryTyper()
+contract_app = SentryTyper()
+event_app = SentryTyper()
 
 app.add_typer(user_app, name="user")
 app.add_typer(client_app, name="client")
@@ -86,18 +89,15 @@ def register(
         except ValueError as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
-        except Exception as e:
-            typer.echo(f"Erreur: {e}")
-            raise typer.Exit(1)
 
 
 @app.command()
 def test_sentry():
     """Commande de test pour vérifier que Sentry capture bien les erreurs."""
     typer.echo("Test de Sentry - Génération d'une erreur volontaire...")
-    
-    # Erreur non gérée - Sentry la capturera automatiquement
-    raise ValueError("Test Sentry : Cette erreur doit apparaître dans Sentry")
+
+    # Erreur non gérée - Sentry la capturera via le décorateur @sentry_cli_command
+    raise RuntimeError("Test Sentry : Cette erreur doit apparaître dans Sentry")
 
 
 # USERS
@@ -110,9 +110,7 @@ def list_users():
         except AuthenticationError as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
-
         users = db.query(User).all()
-
         typer.echo(
             f"\n{'ID':<5} {'N. Employe':<15} {'Nom':<20} {'Email':<30} {'Role':<15}"
         )
@@ -121,6 +119,7 @@ def list_users():
             typer.echo(
                 f"{u.id:<5} {u.employee_number:<15} {u.full_name:<20} {u.email:<30} {u.role.value:<15}"
             )
+
 
 @user_app.command("create")
 def create_user_cmd(
@@ -134,7 +133,7 @@ def create_user_cmd(
                 db, user, employee_number, full_name, email, password, role
             )
             typer.echo(f"Utilisateur cree: {new_user.full_name}")
-        except (AuthenticationError, ValueError, Exception) as e:
+        except (AuthenticationError, ValueError) as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
 
@@ -160,7 +159,6 @@ def update_user_cmd(
                 raise ValueError(
                     f"Utilisateur avec le numero {employee_number} non trouve"
                 )
-
             updated = update_user(
                 db,
                 user,
@@ -172,7 +170,7 @@ def update_user_cmd(
                 is_active=None,
             )
             typer.echo(f"Utilisateur modifie: {updated.full_name}")
-        except (AuthenticationError, ValueError, Exception) as e:
+        except (AuthenticationError, ValueError) as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
 
@@ -195,7 +193,7 @@ def delete_user_cmd(employee_number: str):
 
             delete_user(db, user, target_user.id)
             typer.echo(f"Utilisateur supprime: {target_user.full_name}")
-        except (AuthenticationError, ValueError, Exception) as e:
+        except (AuthenticationError, ValueError) as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
 
@@ -222,9 +220,10 @@ def list_clients():
                     )
             else:
                 typer.echo("Aucun client")
-        except (AuthenticationError, Exception) as e:
+        except (AuthenticationError, ClientError) as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
+
 
 @client_app.command("create")
 def create_client_cmd(full_name: str, email: str, phone: str, company_name: str):
@@ -234,7 +233,7 @@ def create_client_cmd(full_name: str, email: str, phone: str, company_name: str)
             user = get_authenticated_user(db)
             client = create_client(db, user, full_name, email, phone, company_name)
             typer.echo(f"Client cree: ID {client.id}")
-        except (AuthenticationError, ValueError, Exception) as e:
+        except (AuthenticationError, ClientError, ValueError) as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
 
@@ -247,7 +246,7 @@ def delete_client_cmd(client_id: int):
             user = get_authenticated_user(db)
             delete_client(db, user, client_id)
             typer.echo(f"Client #{client_id} supprime")
-        except (AuthenticationError, ValueError, Exception) as e:
+        except (AuthenticationError, ClientError, ValueError) as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
 
@@ -272,7 +271,7 @@ def list_contracts():
                     )
             else:
                 typer.echo("Aucun contrat")
-        except (AuthenticationError, Exception) as e:
+        except (AuthenticationError, ContractError) as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
 
@@ -293,7 +292,7 @@ def create_contract_cmd(
                 amount_due=Decimal(str(amount_due)) if amount_due else None,
             )
             typer.echo(f"Contrat cree: ID {contract.id}")
-        except (AuthenticationError, ValueError, Exception) as e:
+        except (AuthenticationError, ContractError, ValueError) as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
 
@@ -321,7 +320,7 @@ def update_contract_cmd(
                 is_signed=is_signed,
             )
             typer.echo(f"Contrat modifie: ID {contract.id}")
-        except (AuthenticationError, ValueError, Exception) as e:
+        except (AuthenticationError, ContractError, ValueError) as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
 
@@ -334,7 +333,7 @@ def delete_contract_cmd(contract_id: int):
             user = get_authenticated_user(db)
             delete_contract(db, user, contract_id)
             typer.echo(f"Contrat #{contract_id} supprime")
-        except (AuthenticationError, ValueError, Exception) as e:
+        except (AuthenticationError, ContractError, ValueError) as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
 
@@ -369,7 +368,7 @@ def list_events():
                     )
             else:
                 typer.echo("Aucun evenement")
-        except (AuthenticationError, Exception) as e:
+        except (AuthenticationError, EventError) as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
 
@@ -404,13 +403,7 @@ def create_event_cmd(
                 notes=notes,
             )
             typer.echo(f"Evenement cree: ID {event.id}")
-        except AuthenticationError as e:
-            typer.echo(f"Erreur: {e}")
-            raise typer.Exit(1)
-        except ValueError as e:
-            typer.echo(f"Erreur: {e}")
-            raise typer.Exit(1)
-        except Exception as e:
+        except (AuthenticationError, EventError, ValueError) as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
 
@@ -453,7 +446,7 @@ def update_event_cmd(
                 notes=notes,
             )
             typer.echo(f"Evenement modifie: ID {event.id}")
-        except (AuthenticationError, ValueError, Exception) as e:
+        except (AuthenticationError, EventError, ValueError) as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
 
@@ -466,7 +459,7 @@ def delete_event_cmd(event_id: int):
             user = get_authenticated_user(db)
             delete_event(db, user, event_id)
             typer.echo(f"Evenement #{event_id} supprime")
-        except (AuthenticationError, ValueError, Exception) as e:
+        except (AuthenticationError, EventError, ValueError) as e:
             typer.echo(f"Erreur: {e}")
             raise typer.Exit(1)
 

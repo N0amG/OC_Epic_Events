@@ -2,7 +2,7 @@
 
 ## Description
 
-Epic Events CRM est une application de gestion de la relation client (CRM) pour organiser les événements. Elle permet aux équipes de vente, de support et de gestion de collaborer efficacement sur les clients, contrats et événements.
+Epic Events CRM est une application de gestion de la relation client (CRM) en ligne de commande pour organiser les événements d'une entreprise événementielle. Elle permet aux équipes de vente, de support et de gestion de collaborer efficacement sur les clients, contrats et événements.
 
 ## Fonctionnalités
 
@@ -16,57 +16,104 @@ Epic Events CRM est une application de gestion de la relation client (CRM) pour 
 
 ## Prérequis
 
-- Python 3.8+
-- PostgreSQL
-- Un compte Sentry (optionnel, pour la journalisation)
+- Python 3.13+
+- PostgreSQL 18+
+- Un compte Sentry (optionnel, pour la journalisation des erreurs)
 
 ## Installation
 
-1. **Cloner le dépôt**
-   ```bash
-   git clone <votre-repo>
-   cd OC_Epic_Events
-   ```
+### 1. Cloner le dépôt
 
-2. **Créer un environnement virtuel**
-   ```bash
-   python -m venv .venv
-   .venv\Scripts\activate  # Windows
-   # ou
-   source .venv/bin/activate  # Linux/Mac
-   ```
+```bash
+git clone https://github.com/votre-username/OC_Epic_Events.git
+cd OC_Epic_Events
+```
 
-3. **Installer les dépendances**
-   ```bash
-   pip install -r requierements.txt
-   ```
+### 2. Créer un environnement virtuel
 
-4. **Configurer les variables d'environnement**
-   - Copier le fichier `.env.example` vers `.env`
-   - Éditer `.env` avec vos propres valeurs :
-   ```bash
-   cp .env.example .env
-   ```
-   
-   Variables à configurer :
-   - `DB_USER` : Nom d'utilisateur PostgreSQL
-   - `DB_PASSWORD` : Mot de passe PostgreSQL
-   - `DB_HOST` : Hôte de la base de données (généralement `localhost`)
-   - `DB_NAME` : Nom de la base de données
-   - `SENTRY_DSN` : DSN Sentry (optionnel, laissez vide pour désactiver)
-   - `ENVIRONMENT` : Environnement (development, staging, production)
+```bash
+python -m venv .venv
 
-5. **Créer la base de données**
-   ```sql
-   CREATE DATABASE epicevents;
-   ```
+# Windows
+.venv\Scripts\activate
 
-6. **Initialiser les tables**
-   ```bash
-   python main.py
-   ```
+# Linux/Mac
+source .venv/bin/activate
+```
 
-## Configuration Sentry
+### 3. Installer les dépendances
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Configurer PostgreSQL
+
+Créez la base de données dans PostgreSQL :
+
+```sql
+-- Connectez-vous à PostgreSQL
+psql -U postgres
+
+-- Créez la base de données
+CREATE DATABASE epicevents;
+
+-- Créez un utilisateur (optionnel, remplacer par vos propres valeurs)
+CREATE USER epicevents_user WITH PASSWORD 'votre_mot_de_passe_securise';
+GRANT ALL PRIVILEGES ON DATABASE epicevents TO epicevents_user;
+```
+
+### 5. Configurer les variables d'environnement
+
+Copiez le fichier d'exemple et configurez vos propres valeurs :
+
+```bash
+# Windows
+copy .env.example .env
+
+# Linux/Mac
+cp .env.example .env
+```
+
+Éditez le fichier `.env` avec vos informations :
+
+```ini
+# Configuration Base de données PostgreSQL
+DB_USER=epicevents_user
+DB_PASSWORD=votre_mot_de_passe_securise
+DB_HOST=localhost
+DB_NAME=epicevents
+
+# Configuration Sentry (optionnel)
+# Laisser vide pour désactiver Sentry
+SENTRY_DSN=
+ENVIRONMENT=development
+```
+
+### 6. Initialiser la base de données
+
+Exécutez le script d'initialisation qui créera toutes les tables et un compte administrateur :
+
+```bash
+python init_db.py
+```
+
+Ce script va :
+- Créer toutes les tables nécessaires (users, clients, contracts, events)
+- Créer un utilisateur administrateur par défaut avec les identifiants :
+  - **Numéro d'employé** : `ADMIN001`
+  - **Mot de passe** : `Admin123!`
+  - **Rôle** : Management
+
+⚠️ **Important** : Changez le mot de passe après votre première connexion !
+
+### 7. Première connexion
+
+```bash
+python epicevents.py login ADMIN001 Admin123!
+```
+
+## Configuration Sentry (Optionnel)
 
 ### Pourquoi Sentry ?
 
@@ -78,32 +125,31 @@ Sentry permet de :
 ### Configuration
 
 1. **Créer un compte Sentry**
-   - Aller sur [sentry.io](https://sentry.io)
+   - Aller sur [sentry.io](https://sentry.io) et créer un compte gratuit
    - Créer un nouveau projet Python
 
 2. **Récupérer le DSN**
-   - Dans votre projet Sentry, aller dans Settings > Client Keys (DSN)
+   - Dans votre projet Sentry : Settings > Client Keys (DSN)
    - Copier la valeur du DSN
 
 3. **Configurer dans .env**
-   ```
-   SENTRY_DSN=https://your-key@sentry.io/your-project-id
+   ```ini
+   SENTRY_DSN=https://votre_cle@sentry.io/votre_projet_id
    ENVIRONMENT=production
    ```
 
 ### Événements journalisés
 
 L'application journalise automatiquement :
-- ✅ **Toutes les exceptions inattendues** : Capturées automatiquement par Sentry
+- ✅ **Toutes les exceptions non gérées** : Capturées automatiquement par Sentry
 - ✅ **Création de collaborateur** : Quand un manager crée un nouveau collaborateur
-- ✅ **Modification de collaborateur** : Quand un manager modifie un collaborateur existant
+- ✅ **Modification de collaborateur** : Quand un manager modifie un collaborateur
 - ✅ **Signature de contrat** : Quand un contrat passe à l'état "signé"
 
 ### Désactiver Sentry
 
 Pour désactiver Sentry (par exemple en développement local) :
 - Laissez `SENTRY_DSN` vide dans le fichier `.env`
-- Ou commentez la ligne dans `.env`
 
 ## Utilisation
 
@@ -111,7 +157,7 @@ Pour désactiver Sentry (par exemple en développement local) :
 
 ```bash
 # Connexion
-python epicevents.py login <email> <password>
+python epicevents.py login <employee_number> <password>
 
 # Déconnexion
 python epicevents.py logout
@@ -127,10 +173,10 @@ python epicevents.py user create
 python epicevents.py user list
 
 # Modifier un collaborateur
-python epicevents.py user update <user_id>
+python epicevents.py user update <employee_number>
 
 # Supprimer un collaborateur
-python epicevents.py user delete <user_id>
+python epicevents.py user delete <employee_number>
 ```
 
 ### Gestion des clients
@@ -178,127 +224,193 @@ python epicevents.py event update <event_id>
 python epicevents.py event delete <event_id>
 ```
 
+### Aide
+
+Pour plus d'informations sur les commandes :
+
+```bash
+# Aide générale
+python epicevents.py --help
+
+# Aide sur une commande spécifique
+python epicevents.py user --help
+python epicevents.py client --help
+```
+
 ## Rôles et Permissions
 
-### Management
-- Créer/modifier/supprimer des collaborateurs
-- Toutes les opérations sur clients, contrats et événements
-- Assigner des contacts de support
+### Management (Gestion)
+- **Collaborateurs** : Créer, modifier, supprimer tous les collaborateurs
+- **Clients** : Toutes les opérations sur tous les clients
+- **Contrats** : Toutes les opérations sur tous les contrats
+- **Événements** : Toutes les opérations sur tous les événements, y compris assigner le support
 
 ### Sales (Commercial)
-- Créer/modifier ses propres clients
-- Créer/modifier les contrats de ses clients
-- Créer des événements pour ses contrats signés
+- **Clients** : Créer et modifier uniquement leurs propres clients
+- **Contrats** : Créer et modifier uniquement les contrats de leurs clients
+- **Événements** : Créer des événements uniquement pour leurs contrats signés
 
 ### Support
-- Voir tous les clients et contrats
-- Modifier les événements qui leur sont assignés
+- **Clients** : Lecture seule de tous les clients
+- **Contrats** : Lecture seule de tous les contrats
+- **Événements** : Modifier uniquement les événements qui leur sont assignés
 
 ## Structure du projet
 
 ```
 OC_Epic_Events/
-├── epicevents/
+├── epicevents/                    # Package principal
 │   ├── __init__.py
-│   ├── config.py              # Configuration (DB, Sentry)
-│   ├── database.py            # Configuration SQLAlchemy
-│   ├── models.py              # Modèles de données
-│   ├── permissions.py         # Système de permissions
-│   ├── sentry_config.py       # Configuration Sentry ✨ NOUVEAU
-│   ├── utils.py               # Utilitaires (JWT, hash)
-│   ├── controllers/
-│   │   ├── auth_controller.py       # Authentification
-│   │   ├── client_controller.py     # Gestion clients
-│   │   ├── contract_controller.py   # Gestion contrats
-│   │   └── event_controller.py      # Gestion événements
-│   └── views/
-├── tests/                     # Tests unitaires
-├── .env.example              # Template de configuration ✨ NOUVEAU
-├── .gitignore
-├── epicevents.py             # Interface CLI
-├── main.py                   # Script de test
-├── README.md                 # Ce fichier
-└── requierements.txt         # Dépendances
+│   ├── config.py                  # Configuration (DB, Sentry)
+│   ├── database.py                # Configuration SQLAlchemy
+│   ├── models.py                  # Modèles de données (User, Client, Contract, Event)
+│   ├── permissions.py             # Système de permissions par rôle
+│   ├── sentry_config.py           # Configuration et journalisation Sentry
+│   ├── utils.py                   # Utilitaires (JWT, hash de mots de passe)
+│   ├── controllers/               # Logique métier
+│   │   ├── __init__.py
+│   │   ├── auth_controller.py     # Authentification et gestion des utilisateurs
+│   │   ├── client_controller.py   # Gestion des clients
+│   │   ├── contract_controller.py # Gestion des contrats
+│   │   └── event_controller.py    # Gestion des événements
+│   └── views/                     # Interface utilisateur (future)
+│       └── __init__.py
+├── .env.example                   # Template de configuration
+├── .gitignore                     # Fichiers à ignorer par Git
+├── epicevents.py                  # Point d'entrée CLI principal
+├── init_db.py                     # Script d'initialisation de la base de données
+├── main.py                        # Script de démonstration/test manuel
+├── pytest.ini                     # Configuration pytest (local uniquement)
+├── README.md                      # Ce fichier
+└── requirements.txt               # Dépendances Python
 ```
 
 ## Sécurité
 
 ### Bonnes pratiques implémentées
 
-- ✅ **Mots de passe hachés** : Utilisation de bcrypt
-- ✅ **Tokens JWT** : Authentification par tokens
-- ✅ **Variables d'environnement** : Configuration sensible dans `.env`
-- ✅ **Fichier .env ignoré** : Non versionné dans Git
+- ✅ **Mots de passe hachés** : Utilisation de bcrypt avec salage automatique
+- ✅ **Tokens JWT** : Authentification par tokens stockés localement
+- ✅ **Variables d'environnement** : Configuration sensible dans `.env` (non versionné)
 - ✅ **DSN Sentry sécurisé** : Stocké dans les variables d'environnement
-- ✅ **Permissions par rôle** : Contrôle d'accès strict
+- ✅ **Permissions par rôle** : Contrôle d'accès strict avec décorateurs
+- ✅ **Validation des données** : Validation des entrées utilisateur
+- ✅ **Separation of concerns** : Architecture en couches (Models, Controllers, CLI)
 
-### ⚠️ Important
+### ⚠️ Important - Ne jamais exposer publiquement
 
-- **Ne jamais commit le fichier `.env`** : Il contient des informations sensibles
-- **Ne pas partager le DSN Sentry** : C'est une clé privée
-- **Changer les secrets en production** : Utiliser des valeurs fortes et uniques
+- **Fichier .env** : Contient les identifiants de base de données et clés Sentry
+- **Token d'authentification** (`.epic_token`) : Token JWT de session
+- **Mots de passe** : Toujours hachés, jamais en clair
 
-## Tests
+### Recommandations pour la production
 
-```bash
-# Installer les dépendances de test
-pip install -r requirements-test.txt
+1. **Utilisez des mots de passe forts** pour tous les comptes
+2. **Changez le mot de passe administrateur** après la première connexion
+3. **Configurez ENVIRONMENT=production** dans `.env` pour la production
+4. **Activez Sentry** pour monitorer les erreurs en production
+5. **Restreignez l'accès** à la base de données PostgreSQL
+6. **Utilisez HTTPS** si vous déployez l'application sur un serveur distant
 
-# Exécuter les tests
-pytest
+## Dépendances
 
-# Avec couverture
-pytest --cov=epicevents
-```
+### Principales
 
-## Développement
+- **SQLAlchemy** : ORM pour la gestion de la base de données
+- **psycopg2-binary** : Driver PostgreSQL
+- **python-dotenv** : Gestion des variables d'environnement
+- **bcrypt** : Hachage des mots de passe
+- **PyJWT** : Génération et validation de tokens JWT
+- **typer** : Framework CLI moderne
+- **sentry-sdk** : Journalisation des erreurs et événements
 
-### Ajouter une nouvelle fonctionnalité journalisée
-
-Pour journaliser un nouvel événement dans Sentry :
-
-1. Créer une fonction dans [sentry_config.py](epicevents/sentry_config.py)
-2. L'appeler depuis le contrôleur approprié
-3. Utiliser `sentry_sdk.capture_message()` pour les événements
-4. Utiliser `sentry_sdk.capture_exception()` pour les erreurs
-
-Exemple :
-```python
-from epicevents.sentry_config import log_contract_signature
-
-# Dans votre contrôleur
-if contract.is_signed:
-    log_contract_signature(
-        contract_id=contract.id,
-        client_name=client.company_name,
-        signed_by=user.email,
-        total_amount=float(contract.total_amount)
-    )
-```
+Voir [requirements.txt](requirements.txt) pour la liste complète.
 
 ## Dépannage
 
 ### Erreur de connexion à la base de données
+
+```
+sqlalchemy.exc.OperationalError: could not connect to server
+```
+
+**Solutions** :
 - Vérifier que PostgreSQL est démarré
-- Vérifier les variables dans `.env`
-- Vérifier que la base `epicevents` existe
+- Vérifier les variables dans `.env` (DB_USER, DB_PASSWORD, DB_HOST, DB_NAME)
+- Vérifier que la base de données `epicevents` existe
+- Tester la connexion : `psql -U votre_user -d epicevents`
 
 ### Sentry ne fonctionne pas
+
+**Solutions** :
 - Vérifier que `SENTRY_DSN` est bien configuré dans `.env`
-- Vérifier que `sentry-sdk` est installé
+- Vérifier que `sentry-sdk` est installé : `pip list | grep sentry`
 - Regarder les logs au démarrage de l'application
+- Tester avec une erreur volontaire pour vérifier l'envoi à Sentry
 
 ### Erreur de permission
-- Vérifier que vous êtes connecté (`python epicevents.py login`)
-- Vérifier votre rôle pour l'action demandée
 
-## Contribution
+```
+PermissionError: Vous n'avez pas la permission...
+```
 
-1. Créer une branche pour votre fonctionnalité
-2. Commiter vos changements
-3. Écrire des tests
-4. Créer une Pull Request
+**Solutions** :
+- Vérifier que vous êtes connecté : `python epicevents.py login`
+- Vérifier votre rôle pour l'action demandée (voir section Rôles et Permissions)
+- Contacter un administrateur pour modifier vos permissions
+
+### Module introuvable
+
+```
+ModuleNotFoundError: No module named 'epicevents'
+```
+
+**Solutions** :
+- Vérifier que vous êtes dans le bon répertoire
+- Vérifier que l'environnement virtuel est activé
+- Réinstaller les dépendances : `pip install -r requirements.txt`
+
+## Développement
+
+### Ajouter une nouvelle fonctionnalité avec journalisation Sentry
+
+Pour journaliser un nouvel événement dans Sentry :
+
+1. Créer une fonction dans [epicevents/sentry_config.py](epicevents/sentry_config.py)
+2. L'appeler depuis le contrôleur approprié
+3. Utiliser `sentry_sdk.capture_message()` pour les événements
+4. Utiliser `sentry_sdk.capture_exception()` pour les erreurs
+
+**Exemple** :
+
+```python
+# Dans sentry_config.py
+def log_custom_event(event_name: str, details: dict):
+    """Journalise un événement personnalisé"""
+    if not sentry_sdk.Hub.current.client:
+        return
+    
+    sentry_sdk.capture_message(
+        f"Événement personnalisé : {event_name}",
+        level="info",
+        extras=details
+    )
+
+# Dans votre contrôleur
+from epicevents.sentry_config import log_custom_event
+
+log_custom_event("nouvelle_action", {
+    "user": user.email,
+    "action": "description"
+})
+```
+
+## Auteur
+
+Projet réalisé par Noam dans le cadre du Projet 12 - OpenClassrooms
 
 ## Licence
 
 Ce projet est un projet éducatif pour OpenClassrooms.
+
+

@@ -4,6 +4,7 @@ Module de configuration Sentry pour Epic Events CRM
 Ce module initialise Sentry pour la journalisation des erreurs et événements.
 """
 
+import functools
 import sentry_sdk
 import typer
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
@@ -27,52 +28,70 @@ def init_sentry():
             integrations=[
                 SqlalchemyIntegration(), # Trace les requêtes SQL pour le contexte des erreurs, et detecte les requetes N+1
             ],
-            # Envoyer les informations de session
-            auto_session_tracking=True,
+            auto_session_tracking=True, # Traque automatiquement les sessions pour mieux comprendre les erreurs liées à l'authentification
             # Capture des breadcrumbs pour le contexte
             max_breadcrumbs=50,
             send_default_pii=True, # Envoie les informations personnelles identifiables (email, etc.) pour le contexte des erreurs
         )
         
-        # Installer le gestionnaire d'exceptions global pour Typer
-        _install_typer_exception_handler()
-        
         return True
     return False
 
-# Méthode Monkey patch pour capturer les exceptions dans les commandes Typer
-def _install_typer_exception_handler():
+
+def sentry_cli_command(func):
     """
-    Installe un gestionnaire d'exceptions global pour Typer.
-    Toutes les exceptions non gérées dans les commandes Typer seront capturées par Sentry.
+    Décorateur pour les commandes CLI Typer.
+    
+    Capture automatiquement les erreurs inattendues dans Sentry.
+    
+    Fonctionnement :
+    - --help ne déclenche aucun envoi (Typer gère le help AVANT d'appeler la fonction).
+    - Les erreurs métier (ValueError, AuthenticationError, etc.) sont gérées
+      par try/except dans les commandes et ne remontent pas ici.
+    - Seules les erreurs inattendues (bugs, 1/0, etc.) remontent au décorateur
+      et sont envoyées à Sentry.
+    
+    Usage:
+        @app.command()
+        @sentry_cli_command
+        def ma_commande():
+            ...
     """
-    # Sauvegarder la méthode originale de typer
-    original_main = typer.main.get_command
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except (SystemExit, KeyboardInterrupt):
+            # typer.Exit() ou Ctrl+C : comportement normal, on ne touche pas
+            raise
+        except Exception as e:
+            # Erreur inattendue (bug) : on envoie à Sentry puis on re-raise
+            sentry_sdk.capture_exception(e)
+            raise
+    return wrapper
+
+
+class SentryTyper(typer.Typer):
+    """
+    Sous-classe de typer.Typer qui applique automatiquement le décorateur
+    sentry_cli_command à toutes les commandes enregistrées.
     
-    # typer_instance : l'objet dans app = typer.Typer() qui contient les commandes
-    # patched_get_command : wrapper qui sera appelé dès que typer crée une commande via @app.command()
-    def patched_get_command(typer_instance):
-        """Wrapper qui ajoute la gestion d'erreurs Sentry à toutes les commandes"""
-        command = original_main(typer_instance)
-        # Sauvegarde la fonction transformée en commande terminal par Typer
-        original_invoke = command.invoke
-        
-        # On remplace la fonction d'invocation de la commande par une version qui capture les exceptions dans Sentry
-        def sentry_invoke(ctx):
-            """Invoke avec capture Sentry"""
-            try:
-                return original_invoke(ctx)
-            except Exception as e:
-                # Capturer l'exception dans Sentry
-                sentry_sdk.capture_exception(e)
-                # Relancer pour que Typer la gère normalement
-                raise
-        
-        command.invoke = sentry_invoke
-        return command
+    Cela évite de devoir ajouter @sentry_cli_command manuellement
+    sur chaque commande.
     
-    # Remplacer la méthode
-    typer.main.get_command = patched_get_command
+    Usage:
+        app = SentryTyper()  # au lieu de typer.Typer()
+        
+        @app.command()
+        def ma_commande():   # automatiquement wrappée par Sentry
+            ...
+    """
+    def command(self, *args, **kwargs):
+        """Surcharge de command() pour wrapper automatiquement avec sentry_cli_command."""
+        parent_decorator = super().command(*args, **kwargs)
+        def decorator(func):
+            return parent_decorator(sentry_cli_command(func))
+        return decorator
 
 
 def log_user_creation(user_email: str, created_by: str, role: str):
