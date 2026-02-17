@@ -35,7 +35,7 @@ def reset_database():
     print("✅ Tables créées avec succès !")
 
 
-def create_demo_users(db):
+def create_demo_users():
     """Crée des utilisateurs de démonstration."""
     print("\n👤 Création des utilisateurs de démonstration...")
     
@@ -60,12 +60,34 @@ def create_demo_users(db):
             "email": "thomas.support@epicevents.com",
             "password": "Password123!",
             "role": RoleEnum.SUPPORT
+        },
+        # Utilisateurs pour les tests
+        {
+            "employee_number": "EMP000",
+            "full_name": "Marie Epic",
+            "email": "marie@epic.com",
+            "password": "password123",
+            "role": RoleEnum.MANAGEMENT
+        },
+        {
+            "employee_number": "EMP001",
+            "full_name": "Jean Commercial",
+            "email": "jean@epic.com",
+            "password": "password123",
+            "role": RoleEnum.SALES
+        },
+        {
+            "employee_number": "EMP003",
+            "full_name": "Paul Support",
+            "email": "paul@epic.com",
+            "password": "password123",
+            "role": RoleEnum.SUPPORT
         }
     ]
     
     created_users = []
     for user_data in users_data:
-        user = register_user(db, **user_data)
+        user = register_user(**user_data)
         created_users.append(user)
         print(f"   ✓ {user.full_name} ({user.role.value})")
     
@@ -220,7 +242,7 @@ def main():
         
         try:
             # Créer les utilisateurs
-            users = create_demo_users(db)
+            users = create_demo_users()
             manager = users[0]  # Marie Manager
             sales = users[1]     # Sophie Sales
             support = users[2]   # Thomas Support
@@ -259,6 +281,22 @@ def main():
             print(f"3. Support")
             print(f"   Email : thomas.support@epicevents.com")
             print(f"   N° employé : SUP001")
+            print()
+            print("="*70)
+            print("📋 COMPTES DE TEST (mot de passe: password123)")
+            print("="*70)
+            print()
+            print(f"1. Manager (Tests)")
+            print(f"   Email : marie@epic.com")
+            print(f"   N° employé : EMP000")
+            print()
+            print(f"2. Commercial (Tests)")
+            print(f"   Email : jean@epic.com")
+            print(f"   N° employé : EMP001")
+            print()
+            print(f"3. Support (Tests)")
+            print(f"   Email : paul@epic.com")
+            print(f"   N° employé : EMP003")
             print("="*70)
             
             print("\nProchaines étapes :")

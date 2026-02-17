@@ -7,11 +7,12 @@ Ce module gère :
 - La vérification des sessions
 """
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from sqlalchemy.orm import Session
 
 from epicevents.models import User, RoleEnum
 from epicevents.sentry_config import log_user_creation, log_user_update
+from epicevents.database import get_db
 from epicevents.utils import (
     hash_password,
     verify_password,
@@ -36,7 +37,6 @@ class AuthorizationError(Exception):
 
 
 def register_user(
-    db: Session,
     employee_number: str,
     full_name: str,
     email: str,
@@ -47,7 +47,6 @@ def register_user(
     Inscrit un nouveau collaborateur.
 
     Args:
-        db: Session de base de données
         employee_number: Numéro d'employé unique
         full_name: Nom complet
         email: Adresse email
@@ -60,41 +59,41 @@ def register_user(
     Raises:
         ValueError: Si l'email ou le numéro d'employé existe déjà
     """
-    # Vérifier si l'email existe déjà
-    existing_email = db.query(User).filter(User.email == email.lower()).first()
-    if existing_email:
-        raise ValueError("Cette adresse email est déjà utilisée")
+    with get_db() as db:
+        # Vérifier si l'email existe déjà
+        existing_email = db.query(User).filter(User.email == email.lower()).first()
+        if existing_email:
+            raise ValueError("Cette adresse email est déjà utilisée")
 
-    # Vérifier si le numéro d'employé existe déjà
-    existing_employee = (
-        db.query(User).filter(User.employee_number == employee_number).first()
-    )
-    if existing_employee:
-        raise ValueError("Ce numéro d'employé existe déjà")
+        # Vérifier si le numéro d'employé existe déjà
+        existing_employee = (
+            db.query(User).filter(User.employee_number == employee_number).first()
+        )
+        if existing_employee:
+            raise ValueError("Ce numéro d'employé existe déjà")
 
-    # Créer l'utilisateur avec le mot de passe haché
-    user = User(
-        employee_number=employee_number,
-        full_name=full_name,
-        email=email.lower(),
-        password_hash=hash_password(password),
-        role=role,
-        is_active=True,
-    )
+        # Créer l'utilisateur avec le mot de passe haché
+        user = User(
+            employee_number=employee_number,
+            full_name=full_name,
+            email=email.lower(),
+            password_hash=hash_password(password),
+            role=role,
+            is_active=True,
+        )
 
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
-    return user
+        return user
 
 
-def authenticate_user(db: Session, email: str, password: str) -> Tuple[User, str]:
+def authenticate_user(email: str, password: str) -> Tuple[User, str]:
     """
     Authentifie un utilisateur et retourne un token JWT.
 
     Args:
-        db: Session de base de données
         email: Email de l'utilisateur
         password: Mot de passe en clair
 
@@ -104,28 +103,29 @@ def authenticate_user(db: Session, email: str, password: str) -> Tuple[User, str
     Raises:
         AuthenticationError: Si les identifiants sont invalides
     """
-    # Rechercher l'utilisateur par email
-    user = db.query(User).filter(User.email == email.lower()).first()
+    with get_db() as db:
+        # Rechercher l'utilisateur par email
+        user = db.query(User).filter(User.email == email.lower()).first()
 
-    if not user:
-        raise AuthenticationError("Email ou mot de passe incorrect")
+        if not user:
+            raise AuthenticationError("Email ou mot de passe incorrect")
 
-    if not user.is_active:
-        raise AuthenticationError("Ce compte a été désactivé")
+        if not user.is_active:
+            raise AuthenticationError("Ce compte a été désactivé")
 
-    # Vérifier le mot de passe
-    if not verify_password(password, user.password_hash):
-        raise AuthenticationError("Email ou mot de passe incorrect")
+        # Vérifier le mot de passe
+        if not verify_password(password, user.password_hash):
+            raise AuthenticationError("Email ou mot de passe incorrect")
 
-    # Générer le token JWT
-    token = create_access_token(
-        user_id=user.id, employee_number=user.employee_number, role=user.role.value
-    )
+        # Générer le token JWT
+        token = create_access_token(
+            user_id=user.id, employee_number=user.employee_number, role=user.role.value
+        )
 
-    # Sauvegarder le token localement pour persistance
-    save_token(token)
+        # Sauvegarder le token localement pour persistance
+        save_token(token)
 
-    return user, token
+        return user, token
 
 
 def get_current_user(db: Session, token: str) -> Optional[User]:
@@ -220,8 +220,6 @@ def get_authenticated_user(db: Session) -> User:
 
 
 def create_user(
-    db: Session,
-    current_user: User,
     employee_number: str,
     full_name: str,
     email: str,
@@ -232,8 +230,6 @@ def create_user(
     Crée un nouveau collaborateur (management uniquement).
 
     Args:
-        db: Session de base de données
-        current_user: Utilisateur effectuant la création
         employee_number: Numéro d'employé
         full_name: Nom complet
         email: Email
@@ -244,50 +240,82 @@ def create_user(
         Le collaborateur créé
 
     Raises:
+        AuthenticationError: Si non authentifié
         ValueError: Si permission refusée ou données invalides
     """
-    # Vérifier les permissions
-    if current_user.role != RoleEnum.MANAGEMENT:
-        raise ValueError("Seul le management peut créer des collaborateurs")
+    with get_db() as db:
+        current_user = get_authenticated_user(db)
 
-    # Validation des données
-    if not employee_number or not employee_number.strip():
-        raise ValueError("Le numéro d'employé est obligatoire")
+        # Vérifier les permissions
+        if current_user.role != RoleEnum.MANAGEMENT:
+            raise ValueError("Seul le management peut créer des collaborateurs")
 
-    if not full_name or not full_name.strip():
-        raise ValueError("Le nom complet est obligatoire")
+        # Validation des données
+        if not employee_number or not employee_number.strip():
+            raise ValueError("Le numéro d'employé est obligatoire")
 
-    if not email or not email.strip() or "@" not in email:
-        raise ValueError("L'email est invalide")
+        if not full_name or not full_name.strip():
+            raise ValueError("Le nom complet est obligatoire")
 
-    if not password or len(password) < 8:
-        raise ValueError("Le mot de passe doit contenir au moins 8 caractères")
+        if not email or not email.strip() or "@" not in email:
+            raise ValueError("L'email est invalide")
 
-    # Vérifier unicité
-    if db.query(User).filter(User.employee_number == employee_number).first():
-        raise ValueError("Ce numéro d'employé existe déjà")
+        if not password or len(password) < 8:
+            raise ValueError("Le mot de passe doit contenir au moins 8 caractères")
 
-    if db.query(User).filter(User.email == email).first():
-        raise ValueError("Cet email est déjà utilisé")
+        # Vérifier unicité
+        if db.query(User).filter(User.employee_number == employee_number).first():
+            raise ValueError("Ce numéro d'employé existe déjà")
 
-    # Créer le collaborateur
-    new_user = register_user(db, employee_number, full_name, email, password, role)
-    
-    # Journaliser la création
-    log_user_creation(
-        user_email=new_user.email,
-        created_by=current_user.email,
-        role=role.value
-    )
-    
-    return new_user
+        if db.query(User).filter(User.email == email).first():
+            raise ValueError("Cet email est déjà utilisé")
+
+        # Créer l'utilisateur avec le mot de passe haché
+        new_user = User(
+            employee_number=employee_number,
+            full_name=full_name,
+            email=email.lower(),
+            password_hash=hash_password(password),
+            role=role,
+            is_active=True,
+        )
+
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+
+        # Journaliser la création
+        log_user_creation(
+            user_email=new_user.email,
+            created_by=current_user.email,
+            role=role.value
+        )
+
+        # Access full_name before leaving the session
+        user_name = new_user.full_name
+        user_id = new_user.id
+
+        return new_user
+
+
+def get_all_users() -> list:
+    """
+    Récupère tous les utilisateurs (nécessite authentification).
+        
+    Returns:
+        Liste de tous les utilisateurs
+        
+    Raises:
+        AuthenticationError: Si non authentifié
+    """
+    with get_db() as db:
+        get_authenticated_user(db)
+        return db.query(User).all()
 
 
 def update_user(
-    db: Session,
-    current_user: User,
-    user_id: int,
-    employee_number: str = None,
+    employee_number: str,
+    new_employee_number: str = None,
     full_name: str = None,
     email: str = None,
     role: RoleEnum = None,
@@ -297,10 +325,8 @@ def update_user(
     Modifie un collaborateur (management uniquement).
 
     Args:
-        db: Session de base de données
-        current_user: Utilisateur effectuant la modification
-        user_id: ID du collaborateur à modifier
-        employee_number: Nouveau numéro d'employé
+        employee_number: Numéro d'employé du collaborateur à modifier
+        new_employee_number: Nouveau numéro d'employé
         full_name: Nouveau nom
         email: Nouvel email
         role: Nouveau rôle (département)
@@ -310,104 +336,112 @@ def update_user(
         Le collaborateur modifié
 
     Raises:
+        AuthenticationError: Si non authentifié
         ValueError: Si permission refusée ou données invalides
     """
-    # Vérifier les permissions
-    if current_user.role != RoleEnum.MANAGEMENT:
-        raise ValueError("Seul le management peut modifier des collaborateurs")
+    with get_db() as db:
+        current_user = get_authenticated_user(db)
+        
+        # Vérifier les permissions
+        if current_user.role != RoleEnum.MANAGEMENT:
+            raise ValueError("Seul le management peut modifier des collaborateurs")
 
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise ValueError("Collaborateur non trouvé")
+        # Trouver l'utilisateur par employee_number
+        user = db.query(User).filter(User.employee_number == employee_number).first()
+        if not user:
+            raise ValueError(f"Utilisateur avec le numero {employee_number} non trouve")
 
-    # Tracer les changements pour la journalisation
-    changes = {}
+        # Tracer les changements pour la journalisation
+        changes = {}
 
-    # Validation et application des modifications
-    if employee_number is not None:
-        if not employee_number.strip():
-            raise ValueError("Le numéro d'employé ne peut pas être vide")
+        # Validation et application des modifications
+        if new_employee_number is not None:
+            if not new_employee_number.strip():
+                raise ValueError("Le numéro d'employé ne peut pas être vide")
 
-        existing = (
-            db.query(User)
-            .filter(User.employee_number == employee_number, User.id != user_id)
-            .first()
-        )
-        if existing:
-            raise ValueError("Ce numéro d'employé est déjà utilisé")
+            existing = (
+                db.query(User)
+                .filter(User.employee_number == new_employee_number, User.id != user.id)
+                .first()
+            )
+            if existing:
+                raise ValueError("Ce numéro d'employé est déjà utilisé")
 
-        changes["employee_number"] = {"old": user.employee_number, "new": employee_number}
-        user.employee_number = employee_number
+            changes["employee_number"] = {"old": user.employee_number, "new": new_employee_number}
+            user.employee_number = new_employee_number
 
-    if full_name is not None:
-        if not full_name.strip():
-            raise ValueError("Le nom complet ne peut pas être vide")
-        changes["full_name"] = {"old": user.full_name, "new": full_name}
-        user.full_name = full_name
+        if full_name is not None:
+            if not full_name.strip():
+                raise ValueError("Le nom complet ne peut pas être vide")
+            changes["full_name"] = {"old": user.full_name, "new": full_name}
+            user.full_name = full_name
 
-    if email is not None:
-        if not email.strip() or "@" not in email:
-            raise ValueError("L'email est invalide")
+        if email is not None:
+            if not email.strip() or "@" not in email:
+                raise ValueError("L'email est invalide")
 
-        existing = (
-            db.query(User).filter(User.email == email, User.id != user_id).first()
-        )
-        if existing:
-            raise ValueError("Cet email est déjà utilisé")
+            existing = (
+                db.query(User).filter(User.email == email, User.id != user.id).first()
+            )
+            if existing:
+                raise ValueError("Cet email est déjà utilisé")
 
-        changes["email"] = {"old": user.email, "new": email}
-        user.email = email
+            changes["email"] = {"old": user.email, "new": email}
+            user.email = email
 
-    if role is not None:
-        changes["role"] = {"old": user.role.value, "new": role.value}
-        user.role = role
+        if role is not None:
+            changes["role"] = {"old": user.role.value, "new": role.value}
+            user.role = role
 
-    if is_active is not None:
-        changes["is_active"] = {"old": user.is_active, "new": is_active}
-        user.is_active = is_active
+        if is_active is not None:
+            changes["is_active"] = {"old": user.is_active, "new": is_active}
+            user.is_active = is_active
 
-    db.commit()
-    db.refresh(user)
+        db.commit()
+        db.refresh(user)
 
-    # Journaliser la modification
-    if changes:
-        log_user_update(
-            user_email=user.email,
-            updated_by=current_user.email,
-            changes=changes
-        )
+        # Journaliser la modification
+        if changes:
+            log_user_update(
+                user_email=user.email,
+                updated_by=current_user.email,
+                changes=changes
+            )
 
-    return user
+        return user
 
 
-def delete_user(db: Session, current_user: User, user_id: int) -> bool:
+def delete_user(employee_number: str) -> bool:
     """
     Supprime un collaborateur (management uniquement).
     
     Args:
-        db: Session de base de données
-        current_user: Utilisateur effectuant la suppression
-        user_id: ID du collaborateur à supprimer
+        employee_number: Numéro d'employé du collaborateur à supprimer
         
     Returns:
         True si la suppression a réussi
         
     Raises:
+        AuthenticationError: Si non authentifié
         ValueError: Si permission refusée ou utilisateur non trouvé
     """
-    # Vérifier les permissions
-    if current_user.role != RoleEnum.MANAGEMENT:
-        raise ValueError("Seul le management peut supprimer des collaborateurs")
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise ValueError("Collaborateur non trouvé")
-    
-    # Empêcher de se supprimer soi-même
-    if user.id == current_user.id:
-        raise ValueError("Vous ne pouvez pas supprimer votre propre compte")
-    
-    db.delete(user)
-    db.commit()
-    
-    return True
+    with get_db() as db:
+        current_user = get_authenticated_user(db)
+        
+        # Vérifier les permissions
+        if current_user.role != RoleEnum.MANAGEMENT:
+            raise ValueError("Seul le management peut supprimer des collaborateurs")
+        
+        # Trouver l'utilisateur par employee_number
+        user = db.query(User).filter(User.employee_number == employee_number).first()
+        if not user:
+            raise ValueError(f"Utilisateur avec le numero {employee_number} non trouve")
+        
+        # Empêcher de se supprimer soi-même
+        if user.id == current_user.id:
+            raise ValueError("Vous ne pouvez pas supprimer votre propre compte")
+        
+        db.delete(user)
+        db.commit()
+        
+        return True

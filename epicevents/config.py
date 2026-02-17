@@ -14,4 +14,14 @@ DB_NAME = os.getenv("DB_NAME")
 DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
 # Configuration Sentry
 SENTRY_DSN = os.getenv("SENTRY_DSN")
+# Nettoyer SENTRY_DSN : retirer les commentaires et espaces
+if SENTRY_DSN:
+    SENTRY_DSN = SENTRY_DSN.strip()
+    # Si la valeur commence par #, la considérer comme vide
+    if SENTRY_DSN.startswith('#'):
+        SENTRY_DSN = None
+    # Si la valeur est vide après nettoyage, la mettre à None
+    if not SENTRY_DSN:
+        SENTRY_DSN = None
+
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")

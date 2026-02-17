@@ -5,10 +5,12 @@ Ce module gère la lecture et création des données clients.
 """
 
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from epicevents.models import Client, User, RoleEnum
 from epicevents.permissions import has_permission
+from epicevents.database import get_db
+from epicevents.controllers.auth_controller import get_authenticated_user
 
 
 class ClientError(Exception):
@@ -17,29 +19,26 @@ class ClientError(Exception):
     pass
 
 
-def get_all_clients(db: Session, user: User) -> List[Client]:
+def get_all_clients() -> List[Client]:
     """
     Récupère tous les clients.
-
-    Args:
-        db: Session de base de données
-        user: Utilisateur effectuant la requête (doit être authentifié)
 
     Returns:
         Liste des clients
 
     Raises:
+        AuthenticationError: Si non authentifié
         ClientError: Si l'utilisateur n'a pas la permission
     """
-    if not has_permission(user, "client.read"):
-        raise ClientError("Vous n'avez pas la permission de consulter les clients")
+    with get_db() as db:
+        user = get_authenticated_user(db)
+        if not has_permission(user, "client.read"):
+            raise ClientError("Vous n'avez pas la permission de consulter les clients")
 
-    return db.query(Client).all()
+        return db.query(Client).options(joinedload(Client.sales_contact)).all()
 
 
 def create_client(
-    db: Session,
-    user: User,
     full_name: str,
     email: str,
     phone: Optional[str] = None,
@@ -49,8 +48,6 @@ def create_client(
     Crée un nouveau client.
 
     Args:
-        db: Session de base de données
-        user: Utilisateur effectuant la création (doit être commercial)
         full_name: Nom complet du client
         email: Email du client
         phone: Numéro de téléphone (optionnel)
@@ -60,72 +57,78 @@ def create_client(
         Le client créé
 
     Raises:
+        AuthenticationError: Si non authentifié
         ClientError: Si permission refusée ou données invalides
     """
-    # Vérifier les permissions
-    if not has_permission(user, "client.create"):
-        raise ClientError("Vous n'avez pas la permission de créer des clients")
+    with get_db() as db:
+        user = get_authenticated_user(db)
+        
+        # Vérifier les permissions
+        if not has_permission(user, "client.create"):
+            raise ClientError("Vous n'avez pas la permission de créer des clients")
 
-    # Validation des données
-    if not full_name or not full_name.strip():
-        raise ClientError("Le nom complet est obligatoire")
+        # Validation des données
+        if not full_name or not full_name.strip():
+            raise ClientError("Le nom complet est obligatoire")
 
-    if not email or not email.strip() or "@" not in email:
-        raise ClientError("L'email est invalide")
+        if not email or not email.strip() or "@" not in email:
+            raise ClientError("L'email est invalide")
 
-    # Vérifier si l'email existe déjà
-    existing = db.query(Client).filter(Client.email == email).first()
-    if existing:
-        raise ClientError(f"Un client avec l'email '{email}' existe déjà")
+        # Vérifier si l'email existe déjà
+        existing = db.query(Client).filter(Client.email == email).first()
+        if existing:
+            raise ClientError(f"Un client avec l'email '{email}' existe déjà")
 
-    client = Client(
-        full_name=full_name,
-        email=email,
-        phone=phone,
-        company_name=company_name,
-        sales_contact_id=user.id,  # Le commercial devient le contact
-    )
+        client = Client(
+            full_name=full_name,
+            email=email,
+            phone=phone,
+            company_name=company_name,
+            sales_contact_id=user.id,  # Le commercial devient le contact
+        )
 
-    db.add(client)
-    db.commit()
-    db.refresh(client)
+        db.add(client)
+        db.commit()
+        db.refresh(client)
 
-    return client
+        return client
 
 
-def delete_client(db: Session, user: User, client_id: int) -> bool:
+def delete_client(client_id: int) -> bool:
     """
     Supprime un client.
     
     Args:
-        db: Session de base de données
-        user: Utilisateur effectuant la suppression
         client_id: ID du client à supprimer
         
     Returns:
         True si la suppression a réussi
         
     Raises:
+        AuthenticationError: Si non authentifié
         ClientError: Si permission refusée ou client non trouvé
     """
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise ClientError(f"Client #{client_id} non trouvé")
-    
-    # Vérifier les permissions
-    can_delete = False
-    if has_permission(user, "client.delete"):
-        # Management peut supprimer tous les clients
-        can_delete = True
-    elif has_permission(user, "client.delete_own"):
-        # Commercial peut supprimer uniquement ses propres clients
-        if client.sales_contact_id == user.id:
+    with get_db() as db:
+        user = get_authenticated_user(db)
+        
+        client = db.query(Client).filter(Client.id == client_id).first()
+        if not client:
+            raise ClientError(f"Client #{client_id} non trouvé")
+        
+        # Vérifier les permissions
+        can_delete = False
+        if has_permission(user, "client.delete"):
+            # Management peut supprimer tous les clients
             can_delete = True
-    
-    if not can_delete:
-        raise ClientError("Vous n'avez pas la permission de supprimer ce client")
-    
-    db.delete(client)
-    db.commit()
-    
-    return True
+        elif has_permission(user, "client.delete_own"):
+            # Commercial peut supprimer uniquement ses propres clients
+            if client.sales_contact_id == user.id:
+                can_delete = True
+        
+        if not can_delete:
+            raise ClientError("Vous n'avez pas la permission de supprimer ce client")
+        
+        db.delete(client)
+        db.commit()
+        
+        return True

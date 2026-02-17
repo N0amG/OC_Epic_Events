@@ -21,6 +21,7 @@ def init_sentry():
     
     Ne s'initialise que si SENTRY_DSN est configuré.
     """
+    # Vérifier que SENTRY_DSN est défini (config.py le nettoie déjà)
     if SENTRY_DSN:
         sentry_sdk.init(
             dsn=SENTRY_DSN,
@@ -66,7 +67,9 @@ def sentry_cli_command(func):
             raise
         except Exception as e:
             # Erreur inattendue (bug) : on envoie à Sentry puis on re-raise
-            sentry_sdk.capture_exception(e)
+            # Ne capturer que si Sentry est configuré
+            if SENTRY_DSN:
+                sentry_sdk.capture_exception(e)
             raise
     return wrapper
 
@@ -79,16 +82,25 @@ class SentryTyper(typer.Typer):
     Cela évite de devoir ajouter @sentry_cli_command manuellement
     sur chaque commande.
     
+    Si Sentry n'est pas configuré (SENTRY_DSN vide ou absent),
+    se comporte exactement comme typer.Typer standard.
+    
     Usage:
         app = SentryTyper()  # au lieu de typer.Typer()
         
         @app.command()
-        def ma_commande():   # automatiquement wrappée par Sentry
+        def ma_commande():   # automatiquement wrappée par Sentry si configuré
             ...
     """
     def command(self, *args, **kwargs):
         """Surcharge de command() pour wrapper automatiquement avec sentry_cli_command."""
         parent_decorator = super().command(*args, **kwargs)
+        
+        # Si Sentry n'est pas configuré, comportement normal de Typer
+        if not SENTRY_DSN:
+            return parent_decorator
+        
+        # Sinon, wrapper avec Sentry
         def decorator(func):
             return parent_decorator(sentry_cli_command(func))
         return decorator
@@ -103,6 +115,9 @@ def log_user_creation(user_email: str, created_by: str, role: str):
         created_by: Email du créateur
         role: Rôle du collaborateur
     """
+    if not SENTRY_DSN:
+        return
+    
     sentry_sdk.capture_message(
         f"Nouveau collaborateur créé : {user_email}",
         level="info",
@@ -124,6 +139,9 @@ def log_user_update(user_email: str, updated_by: str, changes: dict):
         updated_by: Email de celui qui a fait la modification
         changes: Dictionnaire des modifications effectuées
     """
+    if not SENTRY_DSN:
+        return
+    
     sentry_sdk.capture_message(
         f"Collaborateur modifié : {user_email}",
         level="info",
@@ -146,6 +164,9 @@ def log_contract_signature(contract_id: int, client_name: str, signed_by: str, t
         signed_by: Email de celui qui a signé
         total_amount: Montant total du contrat
     """
+    if not SENTRY_DSN:
+        return
+    
     sentry_sdk.capture_message(
         f"Contrat #{contract_id} signé pour {client_name}",
         level="info",
