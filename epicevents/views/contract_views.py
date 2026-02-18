@@ -28,9 +28,8 @@ def create_contract_app() -> SentryTyper:
                 )
                 typer.echo("-" * 70)
                 for c in contracts:
-                    client_name = c.client.full_name if c.client else "N/A"
                     typer.echo(
-                        f"{c.id:<5} {client_name:<25} {float(c.total_amount):<12.2f} {float(c.amount_due):<12.2f} {'Oui' if c.is_signed else 'Non':<8}"
+                        f"{c['id']:<5} {c['client_name']:<25} {c['total_amount']:<12.2f} {c['amount_due']:<12.2f} {'Oui' if c['is_signed'] else 'Non':<8}"
                     )
             else:
                 typer.echo("Aucun contrat")

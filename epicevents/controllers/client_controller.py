@@ -19,12 +19,12 @@ class ClientError(Exception):
     pass
 
 
-def get_all_clients() -> List[Client]:
+def get_all_clients() -> List[dict]:
     """
-    Récupère tous les clients.
+    Récupère tous les clients sous forme de dicts prêts à l'affichage.
 
     Returns:
-        Liste des clients
+        Liste de dicts clients
 
     Raises:
         AuthenticationError: Si non authentifié
@@ -35,7 +35,18 @@ def get_all_clients() -> List[Client]:
         if not has_permission(user, "client.read"):
             raise ClientError("Vous n'avez pas la permission de consulter les clients")
 
-        return db.query(Client).options(joinedload(Client.sales_contact)).all()
+        clients = db.query(Client).options(joinedload(Client.sales_contact)).all()
+        return [
+            {
+                "id": c.id,
+                "full_name": c.full_name,
+                "email": c.email,
+                "phone": c.phone or "N/A",
+                "company_name": c.company_name or "N/A",
+                "sales_contact": c.sales_contact.full_name if c.sales_contact else "N/A",
+            }
+            for c in clients
+        ]
 
 
 def create_client(

@@ -21,12 +21,12 @@ class ContractError(Exception):
     pass
 
 
-def get_all_contracts() -> List[Contract]:
+def get_all_contracts() -> List[dict]:
     """
-    Récupère tous les contrats.
+    Récupère tous les contrats sous forme de dicts prêts à l'affichage.
 
     Returns:
-        Liste des contrats
+        Liste de dicts contrats
 
     Raises:
         AuthenticationError: Si non authentifié
@@ -37,7 +37,17 @@ def get_all_contracts() -> List[Contract]:
         if not has_permission(user, "contract.read"):
             raise ContractError("Vous n'avez pas la permission de consulter les contrats")
 
-        return db.query(Contract).options(joinedload(Contract.client)).all()
+        contracts = db.query(Contract).options(joinedload(Contract.client)).all()
+        return [
+            {
+                "id": c.id,
+                "client_name": c.client.full_name if c.client else "N/A",
+                "total_amount": float(c.total_amount),
+                "amount_due": float(c.amount_due),
+                "is_signed": c.is_signed,
+            }
+            for c in contracts
+        ]
 
 
 def create_contract(

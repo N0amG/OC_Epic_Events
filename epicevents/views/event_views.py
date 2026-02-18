@@ -28,19 +28,8 @@ def create_event_app() -> SentryTyper:
                 )
                 typer.echo("-" * 110)
                 for e in events:
-                    client_name = (
-                        e.contract.client.full_name
-                        if e.contract and e.contract.client
-                        else "N/A"
-                    )
-                    support_name = (
-                        e.support_contact.full_name
-                        if e.support_contact
-                        else "Non assigné"
-                    )
-                    location = (e.location or "N/A")[:18]
                     typer.echo(
-                        f"{e.id:<5} {client_name:<20} {location:<20} {e.event_date_start.strftime('%Y-%m-%d %H:%M'):<17} {e.event_date_end.strftime('%Y-%m-%d %H:%M'):<17} {e.attendees:<6} {support_name:<20}"
+                        f"{e['id']:<5} {e['client_name']:<20} {e['location']:<20} {e['start']:<17} {e['end']:<17} {e['attendees']:<6} {e['support']:<20}"
                     )
             else:
                 typer.echo("Aucun evenement")

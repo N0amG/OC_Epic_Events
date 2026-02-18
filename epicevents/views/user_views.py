@@ -3,12 +3,12 @@
 import typer
 from typing import Optional
 from epicevents.sentry_config import SentryTyper
-from epicevents.controllers.auth_controller import (
+from epicevents.controllers.auth_controller import AuthenticationError
+from epicevents.controllers.user_controller import (
     get_all_users,
     create_user,
     update_user,
     delete_user,
-    AuthenticationError,
 )
 from epicevents.models import RoleEnum
 
@@ -28,7 +28,7 @@ def create_user_app() -> SentryTyper:
             typer.echo("-" * 90)
             for u in users:
                 typer.echo(
-                    f"{u.id:<5} {u.employee_number:<15} {u.full_name:<20} {u.email:<30} {u.role.value:<15}"
+                    f"{u['id']:<5} {u['employee_number']:<15} {u['full_name']:<20} {u['email']:<30} {u['role']:<15}"
                 )
         except AuthenticationError as e:
             typer.echo(f"Erreur: {e}")

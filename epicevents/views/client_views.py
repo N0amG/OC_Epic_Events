@@ -26,11 +26,8 @@ def create_client_app() -> SentryTyper:
                 )
                 typer.echo("-" * 120)
                 for c in clients:
-                    phone = c.phone or "N/A"
-                    company = c.company_name or "N/A"
-                    contact = c.sales_contact.full_name if c.sales_contact else "N/A"
                     typer.echo(
-                        f"{c.id:<5} {c.full_name:<25} {c.email:<30} {phone:<15} {company:<20} {contact:<20}"
+                        f"{c['id']:<5} {c['full_name']:<25} {c['email']:<30} {c['phone']:<15} {c['company_name']:<20} {c['sales_contact']:<20}"
                     )
             else:
                 typer.echo("Aucun client")

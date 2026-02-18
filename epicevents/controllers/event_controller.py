@@ -19,12 +19,12 @@ class EventError(Exception):
     pass
 
 
-def get_all_events() -> List[Event]:
+def get_all_events() -> List[dict]:
     """
-    Récupère tous les événements.
+    Récupère tous les événements sous forme de dicts prêts à l'affichage.
     
     Returns:
-        Liste des événements
+        Liste de dicts événements
         
     Raises:
         AuthenticationError: Si non authentifié
@@ -35,10 +35,28 @@ def get_all_events() -> List[Event]:
         if not has_permission(user, "event.read"):
             raise EventError("Vous n'avez pas la permission de consulter les événements")
 
-        return db.query(Event).options(
+        events = db.query(Event).options(
             joinedload(Event.contract).joinedload(Contract.client),
             joinedload(Event.support_contact)
         ).all()
+        return [
+            {
+                "id": e.id,
+                "client_name": (
+                    e.contract.client.full_name
+                    if e.contract and e.contract.client
+                    else "N/A"
+                ),
+                "location": (e.location or "N/A")[:18],
+                "start": e.event_date_start.strftime("%Y-%m-%d %H:%M"),
+                "end": e.event_date_end.strftime("%Y-%m-%d %H:%M"),
+                "attendees": e.attendees,
+                "support": (
+                    e.support_contact.full_name if e.support_contact else "Non assigné"
+                ),
+            }
+            for e in events
+        ]
 
 
 def create_event(
