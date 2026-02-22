@@ -92,6 +92,10 @@ class SentryTyper(typer.Typer):
         def ma_commande():   # automatiquement wrappée par Sentry si configuré
             ...
     """
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("add_completion", False)
+        super().__init__(*args, **kwargs)
+
     def command(self, *args, **kwargs):
         """Surcharge de command() pour wrapper automatiquement avec sentry_cli_command."""
         parent_decorator = super().command(*args, **kwargs)
