@@ -47,23 +47,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Configurer PostgreSQL
-
-Créez la base de données dans PostgreSQL :
-
-```sql
--- Connectez-vous à PostgreSQL
-psql -U postgres
-
--- Créez la base de données
-CREATE DATABASE epicevents;
-
--- Créez un utilisateur (optionnel, remplacer par vos propres valeurs)
-CREATE USER epicevents_user WITH PASSWORD 'votre_mot_de_passe_securise';
-GRANT ALL PRIVILEGES ON DATABASE epicevents TO epicevents_user;
-```
-
-### 5. Configurer les variables d'environnement
+### 4. Configurer les variables d'environnement
 
 Copiez le fichier d'exemple et configurez vos propres valeurs :
 
@@ -90,7 +74,7 @@ SENTRY_DSN=
 ENVIRONMENT=development
 ```
 
-### 6. Initialiser la base de données
+### 5. Initialiser la base de données
 
 Exécutez le script d'initialisation qui créera toutes les tables et un compte administrateur :
 
@@ -107,7 +91,7 @@ Ce script va :
 
 ⚠️ **Important** : Changez le mot de passe après votre première connexion !
 
-### 7. Première connexion
+### 6. Première connexion
 
 ```bash
 python epicevents.py login ADMIN001 Admin123!
