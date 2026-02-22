@@ -29,7 +29,9 @@ PERMISSIONS = {
         "user.update",
         "user.delete",
         # Gestion complète des clients
+        "client.create",
         "client.read",
+        "client.update",
         "client.delete",
         # Gestion complète des contrats
         "contract.read",

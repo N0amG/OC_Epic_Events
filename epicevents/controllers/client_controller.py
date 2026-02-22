@@ -95,7 +95,8 @@ def create_client(
             email=email,
             phone=phone,
             company_name=company_name,
-            sales_contact_id=user.id,  # Le commercial devient le contact
+            # Seul un commercial devient automatiquement le contact du client
+            sales_contact_id=user.id if user.role == RoleEnum.SALES else None,
         )
 
         db.add(client)
