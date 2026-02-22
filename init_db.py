@@ -41,6 +41,13 @@ def create_demo_users():
     
     users_data = [
         {
+            "employee_number": "ADMIN001",
+            "full_name": "Administrateur",
+            "email": "admin@epicevents.com",
+            "password": "Admin123!",
+            "role": RoleEnum.MANAGEMENT
+        },
+        {
             "employee_number": "MGT001",
             "full_name": "Marie Manager",
             "email": "marie.manager@epicevents.com",
